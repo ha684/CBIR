@@ -1,33 +1,44 @@
-from matplotlib import pyplot as plt
-from model import load_image,extract_vector,euclidean_distance
+from model import load_image, extract_vector, euclidean_distance
 import streamlit as st
 import torch
 import pickle
-import math
 from PIL import Image
 
-vectors = pickle.load(open('vectors.pkl','rb'))
-img_paths = pickle.load(open('img_paths.pkl','rb'))
-num = 5
-img_input = 'template.jpg'
-img = load_image(img_input)
-vector = extract_vector(img)
-distance = euclidean_distance(vectors,vector)
+# Load data
+vectors = pickle.load(open('vectors.pkl', 'rb'))
+vectors = torch.cat(vectors, dim=0)
+img_paths = pickle.load(open('img_paths.pkl', 'rb'))
 
-ids = torch.argsort(distance)[:num]
-nearest_image = [(img_paths[id], distance[id]) for id in ids]
+# Streamlit app
+st.title("Image Similarity Search")
 
-axes = []
-grid_size = int(math.sqrt(num))
-fig = plt.figure(figsize=(10,5))
+# File uploader for input image
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
 
-for id in range(num):
-    draw_image = nearest_image[id]
-    axes.append(fig.add_subplot(grid_size, grid_size, id+1))
+if uploaded_file is not None:
+    # Display original image
+    st.subheader("Original Image")
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    axes[-1].set_title(draw_image[1])
-    plt.imshow(Image.open(draw_image[0]))
+    # Process the image
+    img = load_image(uploaded_file)
+    vector = extract_vector(img)
+    distance = euclidean_distance(vectors, vector)
+    
+    # Number of similar images to display
+    num = st.slider("Number of similar images to display", min_value=1, max_value=10, value=3)
+    
+    ids = torch.argsort(distance)[:num]
+    nearest_images = [img_paths[id.item()] for id in ids]
 
-fig.tight_layout()
-plt.show()
+    # Display similar images
+    st.subheader(f"Top {num} Similar Images")
+    cols = st.columns(num)
+    for i, img_path in enumerate(nearest_images):
+        with cols[i]:
+            img = Image.open(img_path)
+            st.image(img, caption=f"Similar Image {i+1}", use_column_width=True)
 
+else:
+    st.write("Please upload an image to start the similarity search.")
